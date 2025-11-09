@@ -48,37 +48,83 @@ def init_project(project_name):
         },
         "modules": {}
     }
-    with open(drip_file, "wb") as f:
-        tomli_w.dump(data, f)
+    save_drip_toml(data, drip_file)
 
     print(f"Project '{project_name}' initialized successfully!")
     print(f"Folder structure created:\n- src/main.drop\n- .dp_modules/\n- drip.toml")
 
-def install_module(repo_url):
+# ---------- Install with recursion and circular dependency check ----------
+def install_module(repo_url, version=None, visited=None, stack=None):
+    """
+    Install a module and its dependencies recursively, detect circular dependencies
+    """
     ensure_project_exists()
+
+    if visited is None:
+        visited = set()
+    if stack is None:
+        stack = []
+
     project_path = os.getcwd()
+    module_name = os.path.basename(repo_url).replace(".git", "")
+
+    if module_name in stack:
+        print(f"Error: Circular dependency detected: {' -> '.join(stack + [module_name])}")
+        return
+
+    if module_name in visited:
+        return
+    visited.add(module_name)
+    stack.append(module_name)
+
+    target_dir = os.path.join(project_path, ".dp_modules", module_name)
     data, drip_file = load_drip_toml(project_path)
 
-    # Determine module name from repo URL
-    module_name = os.path.basename(repo_url).replace(".git", "")
-    target_dir = os.path.join(project_path, ".dp_modules", module_name)
-
+    # Clone if not already installed
     if os.path.exists(target_dir):
         print(f"Module '{module_name}' already installed.")
-        return
+    else:
+        print(f"Installing module '{module_name}' from {repo_url} ...")
+        git_cmd = ["git", "clone", "--depth", "1"]
+        if version:
+            git_cmd += ["--branch", version]
+        git_cmd += [repo_url, target_dir]
 
-    # Clone repo into .dp_modules
-    print(f"Installing module '{module_name}' from {repo_url} ...")
-    try:
-        subprocess.run(["git", "clone", repo_url, target_dir], check=True)
-    except subprocess.CalledProcessError as e:
-        print(f"Error: Failed to clone repository: {e}")
-        return
+        try:
+            subprocess.run(git_cmd, check=True)
+        except subprocess.CalledProcessError as e:
+            print(f"Error: Failed to clone repository: {e}")
+            stack.pop()
+            return
 
     # Update drip.toml
-    data["modules"][module_name] = {"source": repo_url, "installed": datetime.now().strftime("%Y-%m-%d")}
+    if module_name not in data["modules"]:
+        data["modules"][module_name] = {
+            "source": repo_url,
+            "version": version or "main",
+            "installed": datetime.now().strftime("%Y-%m-%d"),
+            "dependencies": []
+        }
     save_drip_toml(data, drip_file)
+
+    # Check module's own drip.toml for dependencies
+    module_drip_file = os.path.join(target_dir, "drip.toml")
+    if os.path.exists(module_drip_file):
+        with open(module_drip_file, "rb") as f:
+            module_data = tomllib.load(f)
+            deps = module_data.get("modules", {})
+            for dep_name, dep_info in deps.items():
+                dep_url = dep_info.get("source")
+                dep_version = dep_info.get("version")
+                if dep_url:
+                    install_module(dep_url, dep_version, visited, stack.copy())
+                    # Record dependency
+                    if dep_name not in data["modules"][module_name]["dependencies"]:
+                        data["modules"][module_name]["dependencies"].append(dep_name)
+        save_drip_toml(data, drip_file)
+
     print(f"Module '{module_name}' installed successfully!")
+    stack.pop()
 
 def remove_module(module_name):
     ensure_project_exists()
@@ -91,9 +137,17 @@ def remove_module(module_name):
         return
 
     shutil.rmtree(target_dir)
+
+    # Remove from drip.toml
     if module_name in data["modules"]:
         del data["modules"][module_name]
-        save_drip_toml(data, drip_file)
+
+    # Remove it from other module dependencies
+    for mod in data["modules"].values():
+        if "dependencies" in mod and module_name in mod["dependencies"]:
+            mod["dependencies"].remove(module_name)
+
+    save_drip_toml(data, drip_file)
     print(f"Module '{module_name}' removed successfully.")
 
 def list_modules():
@@ -106,9 +160,10 @@ def list_modules():
         print("No modules installed.")
         return
 
-    print("Installed modules:")
+    print("Installed modules (with dependencies):")
     for name, info in modules.items():
-        print(f"- {name} (source: {info['source']}, installed: {info['installed']})")
+        deps = ", ".join(info.get("dependencies", [])) or "None"
+        print(f"- {name} (source: {info['source']}, version: {info.get('version','main')}, installed: {info['installed']}, deps: {deps})")
 
 # ---------- CLI ----------
 def main():

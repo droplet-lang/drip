@@ -1,7 +1,9 @@
+#!/usr/bin/env python3
 import os
 import sys
-import toml
 from datetime import datetime
+import tomli_w
+import tomllib
 
 def init_project(project_name):
     if os.path.exists(project_name):
@@ -26,8 +28,8 @@ def init_project(project_name):
         },
         "modules": {}
     }
-    with open(drip_file, "w") as f:
-        toml.dump(data, f)
+    with open(drip_file, "wb") as f:
+        tomli_w.dump(data, f)
 
     print(f"Project '{project_name}' initialized successfully!")
     print(f"Folder structure created:\n- src/main.drop\n- lib/\n- drip.toml")

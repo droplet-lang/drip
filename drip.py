@@ -67,11 +67,11 @@ def init_project(project_name, mist=False):
         "mist": {
             "assets_dir": "android/app/src/main/assets",
             "gradle_task": "assembleDebug",
-            "package_name": "com.mist.app",
+            "package_name": "com.mist.example",
             "main_activity": "MainActivity"
         },
         "scripts": {
-            "compile": "droplet compile main.drop -o build/out.dbc",
+            "compile": "droplet compile main.drop -o build/hello.dbc",
             "start": ""
         }
     }
@@ -109,13 +109,13 @@ def run_script(script_name):
         if script_name in ("compile", "start"):
             print(f"Compiling {main_file}...")
             os.makedirs(build_dir, exist_ok=True)
-            run_shell(f"droplet compile {main_file} -o {build_dir}/out.dbc")
+            run_shell(f"droplet compile {main_file} -o {build_dir}/hello.dbc")
             print("Compilation complete.")
 
             if data["project"].get("type") == "mist":
                 assets_dir = data.get("mist", {}).get("assets_dir", "android/app/src/main/assets")
                 os.makedirs(assets_dir, exist_ok=True)
-                shutil.copytree(build_dir, os.path.join(assets_dir, "build"), dirs_exist_ok=True)
+                shutil.copytree(build_dir, assets_dir, dirs_exist_ok=True)
                 print("Assets copied to Android project.")
 
             if script_name == "start":

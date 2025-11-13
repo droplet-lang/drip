@@ -71,7 +71,7 @@ def init_project(project_name, mist=False):
             "main_activity": "MainActivity"
         },
         "scripts": {
-            "compile": "droplet compile main.drop -o build/hello.dbc",
+            "compile": "droplet compile main.drop -o build/bundle.dbc",
             "start": ""
         }
     }
@@ -109,7 +109,7 @@ def run_script(script_name):
         if script_name in ("compile", "start"):
             print(f"Compiling {main_file}...")
             os.makedirs(build_dir, exist_ok=True)
-            run_shell(f"droplet compile {main_file} -o {build_dir}/hello.dbc")
+            run_shell(f"droplet compile {main_file} -o {build_dir}/bundle.dbc")
             print("Compilation complete.")
 
             if data["project"].get("type") == "mist":
